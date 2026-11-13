@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Margin — your projects</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;1,9..144,600&family=Inter:wght@400;500;600&family=Caveat:wght@600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+</head><body>
+<header class="top"><a class="logo" href="./"><i></i>Margin</a><div class="row" id="nav"></div></header>
+<main class="wrap" id="root"></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="shared.js"></script>
+<script>
+const root = $('#root'), nav = $('#nav');
+const MAX = 10 * 1024 * 1024;
+
+function loginView() {
+  nav.replaceChildren();
+  const msg = h('p', { class: 'msg', role: 'status' });
+  const email = h('input', { type: 'email', required: true, placeholder: 'you@studio.com', 'aria-label': 'Email' });
+  const form = h('form', {
+    onsubmit: async e => {
+      e.preventDefault(); setMsg(msg, 'Sending…');
+      const { error } = await sb.auth.signInWithOtp({ email: email.value.trim(), options: { emailRedirectTo: location.href.split('#')[0] } });
+      setMsg(msg, error ? error.message : 'Check your inbox — we sent you a sign-in link.', !!error);
+    }
+  }, h('label', {}, 'Your email'), email, h('div', { class: 'row', style: 'margin-top:14px' }, h('button', { class: 'btn primary', type: 'submit' }, 'Email me a sign-in link')), msg);
+  root.replaceChildren(h('div', { class: 'card', style: 'max-width:480px;margin:40px auto' }, h('h2', {}, 'Welcome back.'), h('p', { class: 'muted' }, 'No password. We email you a one-time link.'), form));
+}
+
+async function dashboard(user) {
+  nav.replaceChildren(h('span', { class: 'muted' }, user.email), h('button', { class: 'btn sm', onclick: async () => { await sb.auth.signOut(); boot(); } }, 'Sign out'));
+  const msg = h('p', { class: 'msg', role: 'status' });
+  const name = h('input', { type: 'text', required: true, maxlength: 120, placeholder: 'e.g. Bloom & Co. homepage v1' });
+  const file = h('input', { type: 'file', required: true, accept: 'image/png,image/jpeg,image/webp,image/gif,application/pdf' });
+  const btn = h('button', { class: 'btn primary', type: 'submit' }, 'Create review link');
+  const form = h('form', {
+    onsubmit: async e => {
+      e.preventDefault();
+      const f = file.files[0]; if (!f) return;
+      if (f.size > MAX) return setMsg(msg, 'That file is over 10 MB.', true);
+      const type = f.type === 'application/pdf' ? 'pdf' : f.type.startsWith('image/') ? 'image' : null;
+      if (!type) return setMsg(msg, 'Please choose an image or a PDF.', true);
+      btn.disabled = true; setMsg(msg, 'Uploading…');
+      const ext = (f.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5);
+      const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+      const up = await sb.storage.from('files').upload(path, f, { contentType: f.type });
+      if (up.error) { btn.disabled = false; return setMsg(msg, up.error.message, true); }
+      const ins = await sb.from('projects').insert({ name: name.value.trim(), file_path: path, file_type: type });
+      btn.disabled = false;
+      if (ins.error) return setMsg(msg, ins.error.message, true);
+      form.reset(); setMsg(msg, 'Created!'); loadList();
+    }
+  }, h('label', {}, 'Project name'), name, h('label', {}, 'Image or PDF (max 10 MB)'), file, h('div', { class: 'row', style: 'margin-top:16px' }, btn), msg);
+  const list = h('div', { class: 'grid' });
+  root.replaceChildren(
+    h('div', { class: 'card' }, h('h2', {}, 'New review'), form),
+    h('h2', { style: 'margin-top:40px;font-size:2rem' }, 'Your projects'), list);
+
+  async function loadList() {
+    const { data, error } = await sb.from('projects').select('*, comments(count)').order('created_at', { ascending: false });
+    if (error) return list.replaceChildren(h('p', { class: 'msg err' }, error.message));
+    if (!data.length) return list.replaceChildren(h('p', { class: 'muted' }, 'Nothing yet — upload your first design above.'));
+    list.replaceChildren(...data.map(p => {
+      const link = reviewUrl(p.share_token), n = p.comments?.[0]?.count ?? 0;
+      const copy = h('button', { class: 'btn sm sage', onclick: async () => { try { await navigator.clipboard.writeText(link); copy.textContent = 'Copied!'; } catch { prompt('Copy this link', link); } setTimeout(() => copy.textContent = 'Copy client link', 1500); } }, 'Copy client link');
+      return h('div', { class: 'proj' },
+        h('div', { class: 'row', style: 'justify-content:space-between' }, h('span', { class: 'chip' + (p.status === 'approved' ? ' ok' : '') }, p.status === 'approved' ? 'Approved ✓' : 'Open'), h('span', { class: 'muted' }, `Round ${p.rounds_used}/${p.rounds_total}`)),
+        h('h3', {}, p.name), h('p', { class: 'muted' }, `${n} note${n === 1 ? '' : 's'} · ${p.file_type.toUpperCase()}`),
+        h('div', { class: 'row' }, h('a', { class: 'btn sm primary', href: link }, 'Open'), copy));
+    }));
+  }
+  loadList();
+}
+
+async function boot() {
+  if (!configured) return root.replaceChildren(setupNotice());
+  const { data: { session } } = await sb.auth.getSession();
+  session ? dashboard(session.user) : loginView();
+}
+if (configured) sb.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_IN') boot(); });
+boot();
+</script></body></html>
