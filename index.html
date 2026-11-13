@@ -7,6 +7,10 @@
 <meta name="description" content="Margin lets clients point at your work and say what they mean. No more feedback scattered across email, WhatsApp and voice notes.">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22%23efe6d5%22/%3E%3Cpath fill=%22%23e73213%22 d=%22M7 53V11h11l14 23 14-23h11v42H46V30L35 49h-6L18 30v23z%22/%3E%3C/svg%3E">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#efe6d5">
+<meta property="og:title" content="Margin — client feedback, in one place">
+<meta property="og:description" content="Clients point at your work and say what they mean. Every note, pinned to the exact spot.">
+<meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,600&family=Inter:wght@400;500;600&family=Caveat:wght@600&display=swap" rel="stylesheet">
@@ -315,7 +319,7 @@ footer.site{border-top:2px solid var(--ink);padding:28px 0 40px;font-size:.88rem
 </div></section>
 
 <section><div class="wrap">
-  <div class="head rev"><span class="eyebrow">Early reactions</span><h2>People <em>exhale</em> when they try it.</h2></div>
+  <div class="head rev"><span class="eyebrow">Sample reactions · concept copy</span><h2>People <em>exhale</em> when they try it.</h2></div>
   <div class="quotes">
     <figure class="q rev"><p>"My client left 14 notes in ten minutes and I understood every one. I almost cried."</p><footer>Priya · brand designer</footer></figure>
     <figure class="q rev"><p>"It replaced my 'feedback' folder, my Notes app, and a whole lot of anxiety."</p><footer>Tom · web developer</footer></figure>
@@ -384,8 +388,16 @@ function submit(){
 cb.onclick=submit;ci.addEventListener('keydown',e=>{if(e.key==='Enter')submit()});
 
 // signup
-document.getElementById('form').addEventListener('submit',e=>{
-  e.preventDefault();document.getElementById('thanks').textContent="you're on the list — thank you! ♥";e.target.reset();
+// Waitlist: paste a Formspree (or similar) endpoint here to collect real signups,
+// e.g. 'https://formspree.io/f/xxxxxxx'. Left empty, the form says signups aren't open yet.
+const WAITLIST_ENDPOINT='';
+document.getElementById('form').addEventListener('submit',async e=>{
+  e.preventDefault();const t=document.getElementById('thanks'),f=e.target;
+  if(!WAITLIST_ENDPOINT){t.textContent="signups open soon — this is a concept preview!";return}
+  try{
+    const r=await fetch(WAITLIST_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({email:f.querySelector('input').value})});
+    if(!r.ok)throw 0;t.textContent="you're on the list — thank you! ♥";f.reset();
+  }catch{t.textContent="hmm, that didn't send. please try again."}
 });
 </script>
 </body>
