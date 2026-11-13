@@ -68,8 +68,16 @@ async function dashboard(user) {
       return h('div', { class: 'proj' },
         h('div', { class: 'row', style: 'justify-content:space-between' }, h('span', { class: 'chip' + (p.status === 'approved' ? ' ok' : '') }, p.status === 'approved' ? 'Approved ✓' : 'Open'), h('span', { class: 'muted' }, `Round ${p.rounds_used}/${p.rounds_total}`)),
         h('h3', {}, p.name), h('p', { class: 'muted' }, `${n} note${n === 1 ? '' : 's'} · ${p.file_type.toUpperCase()}`),
-        h('div', { class: 'row' }, h('a', { class: 'btn sm primary', href: link }, 'Open'), copy));
+        h('div', { class: 'row' }, h('a', { class: 'btn sm primary', href: link }, 'Open'), copy,
+          h('button', { class: 'btn sm', style: 'margin-left:auto', 'aria-label': 'Delete ' + p.name, onclick: () => del(p) }, 'Delete')));
     }));
+  }
+  async function del(p) {
+    if (!confirm(`Delete "${p.name}"?\n\nThe client link will stop working and all notes will be removed. This can't be undone.`)) return;
+    const { error } = await sb.from('projects').delete().eq('id', p.id);
+    if (error) return alert("Couldn't delete: " + error.message);
+    await sb.storage.from('files').remove([p.file_path]); // best effort: remove the uploaded file too
+    loadList();
   }
   loadList();
 }
