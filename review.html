@@ -121,9 +121,18 @@ function approveBox() {
 
 function renderSide() {
   roundEl.replaceChildren(h('span', { class: 'chip' }, `Round ${proj.rounds_used} of ${proj.rounds_total}`));
-  if (proj.is_owner) roundEl.append(h('button', { class: 'btn sm', onclick: async () => {
-    await sb.from('projects').update({ rounds_used: proj.rounds_used + 1, status: 'open', approved_by: null, approved_at: null }).eq('share_token', token);
-    const { data } = await sb.rpc('get_project_by_token', { t: token }); proj = data; renderSide(); } }, 'Next round'));
+  if (proj.is_owner) {
+    const over = proj.rounds_used >= proj.rounds_total;
+    const go = async () => {
+      if (over && !confirm(`You've used all ${proj.rounds_total} agreed rounds. Add one extra round?`)) return;
+      btn.disabled = true;
+      await sb.from('projects').update({ rounds_used: proj.rounds_used + 1, rounds_total: Math.max(proj.rounds_total, proj.rounds_used + 1),
+        status: 'open', approved_by: null, approved_at: null }).eq('share_token', token).eq('rounds_used', proj.rounds_used);
+      const { data } = await sb.rpc('get_project_by_token', { t: token }); proj = data; renderSide();
+    };
+    const btn = h('button', { class: 'btn sm', onclick: go }, over ? 'Add extra round' : 'Next round');
+    roundEl.append(btn);
+  }
   statusEl.replaceChildren(proj.status === 'approved'
     ? h('div', { class: 'banner' }, `Approved by ${proj.approved_by} · ${new Date(proj.approved_at).toLocaleString()}`) : '');
   $('#approve').hidden = proj.status === 'approved' || proj.is_owner;
